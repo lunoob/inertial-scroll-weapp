@@ -4,7 +4,7 @@
 
 ## 预览
 
-<img src="/Users/mac/items/luoob/mp-weixin/inertial-scroll-weapp/images/8o1eq-elrnm.gif" alt="8o1eq-elrnm" style="zoom:50%; float: left;" />
+<img src="./images/8o1eq-elrnm.gif" alt="8o1eq-elrnm" style="zoom:50%; float: left;" />
 
 
 
