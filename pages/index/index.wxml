@@ -1,0 +1,5 @@
+<view class="page">
+	<t-scroll>
+		<view class="row-item" wx:for="{{ 5 }}" wx:key="item">{{ item }}</view>
+	</t-scroll>
+</view>

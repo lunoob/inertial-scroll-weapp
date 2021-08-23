@@ -1,0 +1,20 @@
+<wxs src="./wxs/scroll.wxs" module="scroll" />
+
+<view 
+    id="t-scroll-wrapper"
+    class="t-scroll-wrapper scroll-wrapper"
+    catchtouchstart="{{ scroll.touchStart }}"
+    catchtouchmove="{{ scroll.touchMove }}"
+    catchtouchend="{{ scroll.touchEnd }}">
+    <view 
+        class="t-scroll-scroller scroller" 
+        id="t-scroll-scroller"
+        catchtransitionend="{{ scroll.transitionEnd }}">
+        <slot></slot>
+    </view>
+</view>
+<view
+    change:result="{{ scroll.getResult }}"
+    result="{{ result }}" 
+    class="hidden-bus"
+></view>

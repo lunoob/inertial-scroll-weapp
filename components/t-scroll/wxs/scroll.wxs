@@ -1,0 +1,265 @@
+var self = null
+var scroller = null
+var scroll = {
+    enabled: true,
+    minY: 0,
+    maxY: 0,
+    wrapperHeight: 0,
+    offsetY: 0,
+    duration: 0,
+    bezier: 'linear',
+    startY: 0,
+    pointY: 0,
+    startTime: 0,                       // 惯性滑动范围内的 startTime
+    momentumStartY: 0,                  // 惯性滑动范围内的 startY
+    momentumTimeThreshold: 300,         // 惯性滑动的启动 时间阈值
+    momentumYThreshold: 15,             // 惯性滑动的启动 距离阈值
+    isStarted: false,                   // start锁
+    bounce: true
+}
+
+/**
+ * bindtouchstart 回调
+ * @param {any} e  事件对象
+ * @returns {void}
+ */
+function touchStart(e, instance) {
+    if (!scroll.enabled) return
+    if (!self) {
+        self = instance
+        scroller = self.selectComponent('#t-scroll-scroller')
+    }
+    // 获取点坐标对象
+    var point = e.changedTouches[0]
+    // 开启滚动开关
+    scroll.isStarted = true
+    createTransformStyle({
+        duration: 0
+    })
+    stopRun()
+    scroll.pointY = point.clientY
+    scroll.momentumStartY = scroll.startY = scroll.offsetY
+    scroll.startTime = +getDate()
+}
+
+/**
+ * bindtouchmove 回调
+ * @param {any} e  事件对象
+ * @returns {void}
+ */
+function touchMove(e) {
+    if (!scroll.enabled || !scroll.isStarted) return
+    var point = e.changedTouches[0]
+    var deltaY = point.clientY - scroll.pointY
+    // 浮点数坐标会影响渲染速度
+    var offsetY = Math.round(scroll.startY + deltaY)
+
+    if (scroll.bounce) {
+        // 超出边界时增加阻力, 使用回弹效果
+        if (offsetY < scroll.minY || offsetY > scroll.maxY) {
+        	offsetY = Math.round(scroll.startY + deltaY / 3)
+        }
+    } else {
+        // 正常边界处理
+        if (offsetY < scroll.minY) {
+            offsetY = scroll.minY
+        } else if (offsetY > scroll.maxY) {
+            offsetY = scroll.maxY
+        }
+    }
+    
+    createTransformStyle({ offsetY: offsetY })
+    var now = +getDate()
+    // 记录在触发惯性滑动条件下的偏移值和时间
+    // 当前手指所在位置的时间点 - 上一个手指所在位置的时间点
+    // deltaT(δT)
+    if (now - scroll.startTime > scroll.momentumTimeThreshold) {
+        scroll.momentumStartY = scroll.offsetY
+        scroll.startTime = now
+    }
+}
+
+/**
+ * bindtouchmove 回调
+ * @param {any} e  事件对象
+ * @returns {void}
+ */
+function touchEnd() {
+    if (!scroll.enabled || !scroll.isStarted) return
+    scroll.isStarted = false
+    if (isNeedReset()) return
+    // 位移差的绝对值
+    var absDeltaY = Math.abs(scroll.offsetY - scroll.momentumStartY)
+    var duration = +getDate() - scroll.startTime
+    // 启动惯性滑动 momentum: 动量
+    // 手指滑动时间在系数的范围内 && 位移差 > 动量的限定值
+    if (duration < scroll.momentumTimeThreshold && absDeltaY > scroll.momentumYThreshold) {
+        var momentum = createMomentum(scroll.offsetY, scroll.momentumStartY, duration)
+        if (!scroll.bounce) {
+            if (momentum.destination < scroll.minY) {
+                momentum.destination = scroll.minY
+            } else if (momentum.destination > scroll.maxY) {
+                momentum.destination = scroll.maxY
+            }
+        }
+        createTransformStyle({
+            offsetY: Math.round(momentum.destination),
+            duration: momentum.duration,
+            bezier: momentum.bezier
+        })
+    }
+}
+
+/**
+ * 过渡动画完成回调
+ * @returns {void}
+ */
+function transitionEnd() {
+    isNeedReset()
+}
+
+/**
+ * 获取组件实例传输过来的值
+ * @param {any} res  回调结果
+ * @returns {void}
+ */
+function getResult(res) {
+    if (!res) return
+    if (res.scrollerHeight <= res.wrapperHeight) {
+        scroll.enabled = false
+        return
+    }
+    scroll.wrapperHeight = res.wrapperHeight
+    scroll.minY = res.wrapperHeight - res.scrollerHeight
+    scroll.bounce = !!res.bounce
+}
+
+/**
+ * 停止运动/滑动
+ * @returns {void}
+ */
+function stopRun() {
+    // 获取当前 translate 的位置
+    // matrix 矩阵信息
+    var matrix = scroller.getComputedStyle(['transform']).transform
+    createTransformStyle({
+        offsetY: Math.round(+matrix.split(')')[0].split(', ')[5])
+    })
+}
+
+/**
+ * 判断是否需要重置位置
+ * @returns {void}
+ */
+function isNeedReset() {
+    var offsetY
+    if (scroll.offsetY < scroll.minY) {
+        offsetY = scroll.minY
+    } else if (scroll.offsetY > scroll.maxY) {
+        offsetY = scroll.maxY
+    }
+    if (offsetY != null) {
+        var option
+        if (scroll.bounce) {
+            option = {
+                offsetY: offsetY,
+                duration: 500,
+                bezier: 'cubic-bezier(.165, .84, .44, 1)'
+            }
+        } else {
+            option = {
+                offsetY: offsetY,
+                duration: 0,
+                bezier: ''
+            }
+        }
+        createTransformStyle(option)
+        return true
+    }
+    return false
+}
+
+/**
+ * 创建 transform 样式
+ * @param {{ 
+ *  offsetY: number
+ *  duration: number,
+ *  bezier: number
+ * }} option  运动变量选项
+ * @returns {void}
+ */
+function createTransformStyle(option) {
+    if (scroller == null) return
+    scroll.offsetY = option.offsetY == null ? scroll.offsetY : option.offsetY
+    scroll.duration = option.duration == null ? scroll.duration : option.duration
+    scroll.bezier = option.bezier == null ? scroll.bezier : option.bezier
+
+    scroller.setStyle({
+        'transform': 'translate3d(0, ' + scroll.offsetY + 'px, 0)',
+        'transition-duration': scroll.duration + 'ms',
+        'transition-timing-function': scroll.bezier
+    })
+}
+
+/**
+* 创建动量对象
+* @date 2021-08-15
+* @param {number} current         当前位置
+* @param {number} start           开始位置
+* @param {number} duration        时间差
+* @returns {any}
+*/
+function createMomentum(current, start, duration) {
+    var durationMap = {
+        noBounce: 2500,
+        weekBounce: 800,
+        strongBounce: 400
+    }
+    var bezierMap = {
+        noBounce: 'cubic-bezier(.17, .89, .45, 1)',
+        weekBounce: 'cubic-bezier(.25, .46, .45, .94)',
+        strongBounce: 'cubic-bezier(.25, .46, .45, .94)'
+    }
+    var type = 'noBounce'
+    // 惯性滑动加速度
+    var deceleration = 0.003
+    // 回弹阻力
+    var bounceRate = 10
+    // 强弱回弹的分割值
+    var bounceThreshold = 300
+    // 回弹的最大限度
+    var maxOverflowY = scroll.wrapperHeight / 6
+    var overflowY
+
+    var distance = current - start
+    var speed = (2 * Math.abs(distance)) / duration
+    var destination = current + (speed / deceleration) * (distance < 0 ? -1 : 1)
+    if (destination < scroll.minY) {
+        overflowY = scroll.minY - destination
+        type = overflowY > bounceThreshold ? 'strongBounce' : 'weekBounce'
+        destination = Math.max(scroll.minY - maxOverflowY, scroll.minY - overflowY / bounceRate)
+    } else if (destination > scroll.maxY) {
+        overflowY = destination - scroll.maxY
+        type = overflowY > bounceThreshold ? 'strongBounce' : 'weekBounce'
+        destination = Math.min(scroll.maxY + maxOverflowY, scroll.maxY + overflowY / bounceRate)
+    }
+
+    return {
+        destination: destination,
+        duration: durationMap[type],
+        bezier: bezierMap[type]
+    }
+}
+
+function cb() {
+    console.log('callback')
+}
+
+module.exports = {
+    touchStart: touchStart,
+    touchMove: touchMove,
+    touchEnd: touchEnd,
+    transitionEnd: transitionEnd,
+    getResult: getResult,
+    cb: cb
+}
